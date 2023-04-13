@@ -1,9 +1,10 @@
 USE EXERCISE2;
 select * from employees;
+select * from countries;
 select * from locations;
 select * from departments;
 select * from departments;
-
+select * from regions;
 
 -- question 1
 
@@ -12,13 +13,11 @@ select sum(salary) as total_sum_in_seattle from employees as e inner join depart
 -- question 2
  -- Fetch all details of employees who has salary more than the avg salary by each department.
 select e.employee_id,e.first_name,e.last_name,e.salary,average,e.department_id  from employees e 
-inner JOIN  (select department_id ,  avg(salary) as average from employees group by department_id) as t1
+inner JOIN  (select department_id ,  Round(avg(salary),2) as average from employees group by department_id) as t1
 on e.department_id = t1.department_id having e.salary>average;
 
   -- question 3
   --Write a SQL query to find the number of employees and its location whose salary is greater than or equal to 70000 and less than 100000
-select employees.employee_id,employees.salary, city from employees inner join departments on employees.DEPARTMENT_ID=departments.department_id inner join
-locations on locations.location_id=departments.location_id where salary between 7000 and 10000;
 
 select locations.city , count(*) as count_of_employees from employee 
 inner join 
@@ -37,25 +36,29 @@ select job_id,department_id,min(salary),max(salary),avg(salary) from employee gr
 select sum(salary) from employees inner join departments on employees.department_id=departments.department_id inner join locations on locations.location_id=departments.location_id where first_name!='Nancy' and country_id='US';
 -- question 6 
  -- Fetch max salary, min salary and avg salary by job id and department id but only for folks who worked in more than one role(job) in a department.
-
-select department_id,job_id,max(employee.salary),min(employee.salary),avg(employee.salary) from employee
-join (select employee_id,count(employee_id)as emp_count from job_history group by department_id,employee_id having emp_count > 1) as e
-on e.employee_id = employee.employee_id
+-- combine
+select department_id,job_id,max(employees.salary),min(employees.salary),avg(employees.salary),
+from employees
+join (select employee_id,count(employee_id) as emp from (select employee_id from employees union all  select employee_id from job_history  as t1 group by employee_id) as g group by employee_id having emp>1) as e
+on e.employee_id = employees.employee_id
 group by job_id,department_id;
+-- select employee_id,count(employee_id)as emp_count from (
 
 -- question 7
 -- Display the employee count in each department and also in the same result.  
 -- Info: * the total employee count categorized as "Total"
-select department_id, count(*) as total from employees group by department_id;
+
 
 select departments.department_name  as dept_name, count(*) as count_in_each_dept  from employee
 inner join departments on employee.department_id = departments.department_id
 group by departments.department_name
-union 
-select 'Total',count(*) from employee where department_id is not null
 union
-select '-' , count(*) from employee where department_id is null
-order by dept_name;
+select 'Total',count(*) from employee where department_id is not null  union all
+select '-' , count(*) from employee where department_id is null;
+-- order by  CASE 
+--     WHEN dept_name LIKE '%-%' THEN 1 
+--     ELSE 0 
+--   END,dept_name;
 -- question 8
 -- Display the jobs held and the employee count. 
 -- Hint: every employee is part of at least 1 job 
@@ -76,8 +79,14 @@ group by e.employee_id) as m group by jobs_held order by jobs_held;
 select employees.department_id,locations.country_id, avg(salary) from employees  inner join departments on employees.department_id=departments.department_id  inner join locations on departments.location_id=locations.location_id group by employees.department_id,locations.country_id order by employees.department_id ;
 -- question 10
 -- Display manager names and the number of employees reporting to them by countries (each employee works for only one department, and each department belongs to a country)
-select departments.manager_id,locations.country_id,count(*) from employees inner join departments on employees.department_id=departments.department_id
-inner join locations on locations.location_id=departments.location_id group by departments.manager_id,locations.country_id ;
+
+-- manager name
+select  concat(e2.first_name,' ',e2.last_name) as Manager_name,e1.department_id,departments.manager_id as Manager__id,countries.country_name,count(*) as emp_count from employees as e1
+inner join departments on e1.department_id=departments.department_id
+inner join locations on locations.location_id=departments.location_id 
+inner join countries on locations.country_id=countries.country_id
+inner join  employees as e2 on Manager__id=e2.employee_id
+group by departments.manager_id,locations.country_id,Manager_name,e1.department_id,country_name;
 -- question 11
 --  Group salaries of employees in 4 buckets eg: 0-10000, 10000-20000,.. (Like the previous question) but now group by department and categorize it like below.
 -- Eg : 
@@ -85,10 +94,10 @@ inner join locations on locations.location_id=departments.location_id group by d
 -- 50          2               10
 -- 60          6                5
 select department_id,
-  count(case when salary between 0 and 10000 then 1 end) as between_0_to_10000,
-  count(case when salary between 10001 and 20000 then 1 end)  as between_10001_to_20000,
-  count(case when salary between 20001 and 30000 then 1 end)  as between_20001_to_30000,
-  count(case when salary > 30000 then 1 end)  as greater_than_30000
+  count(case when salary between 0 and 10000 then 1 end) as "0-10000",
+  count(case when salary between 10001 and 20000 then 1 end)  as "10000-20000",
+  count(case when salary between 20001 and 30000 then 1 end)  as "20001-30000",
+  count(case when salary > 30000 then 1 end)  as "greater than 30000"
 from employees
 group by department_id;
 -- question 12
@@ -96,21 +105,49 @@ group by department_id;
 -- Eg : 
 -- Emp Count       Country        Avg Salary
 -- 10                     Germany      34242.8
-select count(*) as Emp_count,countries.country_name,avg(salary) as average_salary from employees left join  departments on departments.department_id=employees.department_id left join locations on locations.location_id=departments.location_id left join 
-countries on locations.country_id=countries.country_id where country_name is not null group by countries.country_name;
+select count(*) as Emp_count,countries.country_name,avg(salary) as average_salary from employees 
+left join  departments on departments.department_id=employees.department_id 
+left join locations on locations.location_id=departments.location_id 
+left join countries on locations.country_id=countries.country_id 
+where country_name is not null group by countries.country_name;
+
 -- question 13
 -- Display region and the number off employees by department
-select employees.department_id,regions.region_name, count(countries.region_id) as count_of_employees from employees inner join departments on 
- employees.department_id=departments.department_id inner join locations on locations.location_id=departments.location_id inner join
-countries on countries.country_id=locations.country_id inner join regions on regions.region_id=countries.region_id
-group by employees.department_id, countries.region_id,regions.region_name;
+select employees.department_id,regions.region_name, count(countries.region_id) as count_of_employees from employees
+inner join departments on employees.department_id=departments.department_id 
+inner join locations on locations.location_id=departments.location_id 
+inner join countries on countries.country_id=locations.country_id 
+inner join regions on regions.region_id=countries.region_id
+group by employees.department_id, countries.region_id,regions.region_name order by department_id;
+
+
+
+SELECT e.department_id AS "Dept ID",
+       (CASE WHEN region_name = 'Americas' THEN count_of ELSE 0 END) AS America,
+       sum(CASE WHEN region_name = 'Europe' THEN  count_of else 0 END) AS Europe,
+       sum(CASE WHEN region_name = 'Asia' THEN 1 ELSE 0 END) AS Asia,
+       sum(CASE WHEN region_name = 'Middle East and Africa' THEN 1 ELSE 0 END) AS Middle_East_and_Africa
+FROM (
+select employee.department_id,regions.region_name, count(countries.region_id) as count_of from EMPLOYEE
+inner join 
+departments on EMPLOYEE.DEPARTMENT_ID=departments.department_id
+inner join 
+locations on locations.location_id=departments.location_id
+inner join
+countries on countries.country_id=locations.country_id
+inner join 
+regions on regions.region_id=countries.region_id
+group by employee.department_id , regions.region_name) as e
+GROUP BY e.region_name,e.department_id,e.count_of ;
+
+select * from regions;
 -- question 14
 -- Select the list of all employees who work either for one or more departments or have not yet joined / allocated to any department
-select * from employee inner join departments on employee.department_id=departments.department_id;
-
+select * from employees left join departments on employees.department_id=departments.department_id;
+select * from departments;
 -- question 15
 -- write a SQL query to find the employees and their respective managers. Return the first name, last name of the employees and their managers
-select concat(e1.first_name,' ',e1.last_name) as Employee_name,concat(e2.first_name,' ',e2.last_name) as Manager_name from employees e1 join employees e2 on e1.manager_id = e2.employee_id;
+select concat(e1.first_name,' ',e1.last_name) as Employee_name,concat(e2.first_name,' ',e2.last_name) as Manager_name from employees e1 left join employees e2 on e1.manager_id = e2.employee_id;
 select * from employees;
 
 -- question 16
@@ -119,8 +156,8 @@ select department_name , city ,state_province from departments
 inner join locations on departments.location_id = locations.location_id;
 -- question 17
 -- write a SQL query to list the employees (first_name , last_name, department_name) who belong to a department or don't
-select first_name , last_name ,department_name  from employees inner join departments on employees.department_id =departments.department_id
-where employees.department_id is not null;
+select first_name , last_name ,department_name  from employees left  join departments on employees.department_id =departments.department_id;
+
 -- question 18
 -- The HR decides to make an analysis of the employees working in every department. Help him to determine the salary given in average per department and the total number of employees working in a department.  List the above along with the department id, department name
 select employees.department_id ,departments.department_name, count(employees.department_id) as count_of_the_employees , avg(salary) from employees 
@@ -145,12 +182,21 @@ left join locations on locations.location_id=departments.location_id
 where city='Oxford'  and substr (full_name,-2,1) ='e';
 -- question 22
 -- Display the first name and phone number of employees who have less than 50 months of experience
-select first_name , phone_number ,hire_date , datediff(month,hire_date,current_date) from employees
-where datediff(month,hire_date,current_date) > 50;
+SELECT e.first_name, e.phone_number,e.salary,e.hire_date
+FROM employees as e
+JOIN job_history as j ON e.employee_id = j.employee_id
+GROUP BY e.employee_id,e.first_name,e.phone_number,e.salary,e.hire_date
+HAVING SUM(DATEDIFF(month,j.start_date, j.end_date)) < 50;
 -- question 23
 -- Display Employee id, first_name, last name, hire_date and salary for employees who has the highest salary for each hiring year. (For eg: John and Deepika joined on year 2023,  and john has a salary of 5000, and Deepika has a salary of 6500. Output should show Deepika’s details only).
-select employee_id , first_name , last_name , hire_date , salary from employee
-where (extract(year from hire_date),salary) in
-(
-select hire_year, max(salary) from (select extract(year from hire_date) as hire_year, salary  from employees )  group by hire_year)
-order by hire_date;
+
+SELECT emp.employee_id, emp.first_name, emp.last_name, emp.hire_date, emp.salary
+FROM (
+  SELECT employee_id, first_name, last_name, hire_date, salary,
+    ROW_NUMBER() OVER (PARTITION BY YEAR(hire_date) ORDER BY salary DESC) AS salary_rank
+  FROM employee
+) emp
+WHERE emp.salary_rank = 1;
+
+
+
